@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <title>Scratchy</title>
 
   <style>
@@ -19,6 +20,12 @@
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
 
+    button,
+    input,
+    select {
+      font-family: inherit;
+    }
+
     #app {
       width: 100%;
       height: 100vh;
@@ -32,6 +39,7 @@
       width: 100%;
       height: 100vh;
       padding: 24px;
+      padding-bottom: 90px;
       border: none;
       outline: none;
       overflow-y: auto;
@@ -77,7 +85,8 @@
       text-decoration-thickness: 2px;
     }
 
-    #editor img.pasted-image {
+    #editor img.pasted-image,
+    #editor img.sketch-image {
       max-width: min(100%, 360px);
       max-height: 260px;
       height: auto;
@@ -85,9 +94,27 @@
       margin: 12px 0;
       border-radius: 6px;
       object-fit: contain;
+      border: 1px solid #222;
     }
 
-    #pageIndicator {
+    #topHandle {
+      position: fixed;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+
+      padding: 5px 14px 7px;
+      border: 1px solid #333;
+      border-top: none;
+      border-radius: 0 0 12px 12px;
+      background: rgba(0, 0, 0, 0.78);
+      color: #777;
+      font-size: 12px;
+      user-select: none;
+    }
+
+    #bottomMeta {
       position: fixed;
       right: 12px;
       bottom: 10px;
@@ -99,14 +126,339 @@
       font-size: 12px;
       user-select: none;
       pointer-events: none;
+      z-index: 10;
+    }
+
+    #plusButton {
+      position: fixed;
+      right: 12px;
+      bottom: 42px;
+      width: 34px;
+      height: 34px;
+      border: 1px solid #333;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.78);
+      color: #aaa;
+      font-size: 22px;
+      line-height: 30px;
+      z-index: 15;
+    }
+
+    #plusMenu {
+      position: fixed;
+      right: 12px;
+      bottom: 82px;
+      width: 230px;
+      max-height: 70vh;
+      overflow: auto;
+      display: none;
+      z-index: 16;
+
+      border: 1px solid #333;
+      border-radius: 12px;
+      background: rgba(8, 8, 8, 0.96);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+      padding: 6px;
+    }
+
+    #plusMenu.open {
+      display: block;
+    }
+
+    .menuButton {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: #ddd;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    .menuButton:active {
+      background: #1f2937;
+    }
+
+    .menuDivider {
+      height: 1px;
+      background: #292929;
+      margin: 5px 0;
+    }
+
+    #dashboard {
+      position: fixed;
+      inset: 0;
+      height: 82vh;
+      transform: translateY(-100%);
+      transition: transform 0.22s ease;
+      z-index: 30;
+
+      display: flex;
+      flex-direction: column;
+
+      background: #0f1117;
+      border-bottom: 1px solid #333;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+    }
+
+    #dashboard.open {
+      transform: translateY(0);
+    }
+
+    #dashboardTop {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px;
+      border-bottom: 1px solid #333;
+      background: #111;
+    }
+
+    #searchInput {
+      flex: 1;
+      box-sizing: border-box;
+      border: 1px solid #333;
+      border-radius: 999px;
+      background: #0b0b0b;
+      color: #eee;
+      outline: none;
+      padding: 9px 12px;
+      font-size: 14px;
+    }
+
+    #closeDashboard {
+      border: 1px solid #333;
+      border-radius: 999px;
+      background: #171717;
+      color: #aaa;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+
+    #tabs {
+      display: flex;
+      gap: 6px;
+      padding: 8px 10px;
+      border-bottom: 1px solid #292929;
+      background: #0f1117;
+    }
+
+    .tabButton {
+      flex: 1;
+      border: 1px solid #333;
+      border-radius: 999px;
+      background: #121212;
+      color: #888;
+      padding: 8px;
+      font-size: 12px;
+    }
+
+    .tabButton.active {
+      color: #eee;
+      background: #1f2937;
+      border-color: #4b5563;
+    }
+
+    #dashboardContent {
+      flex: 1;
+      overflow: auto;
+      padding: 12px;
+    }
+
+    .pageCard {
+      border: 1px solid #2b2b2b;
+      border-radius: 12px;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: #111318;
+    }
+
+    .pageCardHeader {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: #888;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .pageCardPreview {
+      color: #ddd;
+      font-size: 14px;
+      line-height: 1.4;
+      max-height: 70px;
+      overflow: hidden;
+    }
+
+    .pageCardTags {
+      margin-top: 8px;
+      color: #8ab4ff;
+      font-size: 12px;
+    }
+
+    .tagPill {
+      display: inline-block;
+      margin: 4px 4px 0 0;
+      padding: 5px 8px;
+      border: 1px solid #334155;
+      border-radius: 999px;
+      color: #8ab4ff;
+      background: #111827;
+      font-size: 12px;
+    }
+
+    .emptyState {
+      color: #777;
+      padding: 20px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    #sketchModal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 50;
+      background: rgba(0, 0, 0, 0.92);
+    }
+
+    #sketchModal.open {
+      display: flex;
+      flex-direction: column;
+    }
+
+    #sketchToolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px;
+      border-bottom: 1px solid #333;
+      background: #111;
+    }
+
+    #sketchToolbar button,
+    #sketchToolbar select {
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: #171717;
+      color: #ddd;
+      padding: 8px;
+      font-size: 12px;
+    }
+
+    #sketchCanvasWrap {
+      flex: 1;
+      display: grid;
+      place-items: center;
+      overflow: auto;
+      padding: 16px;
+    }
+
+    #sketchCanvas {
+      background: #fff;
+      touch-action: none;
+      border-radius: 6px;
+    }
+
+    @media print {
+      #topHandle,
+      #bottomMeta,
+      #plusButton,
+      #plusMenu,
+      #dashboard,
+      #sketchModal {
+        display: none !important;
+      }
+
+      html,
+      body,
+      #app,
+      #editor {
+        background: white !important;
+        color: black !important;
+        overflow: visible !important;
+        height: auto !important;
+      }
+
+      #editor {
+        padding: 20px !important;
+      }
     }
   </style>
 </head>
 
 <body>
   <div id="app">
+    <div id="topHandle">⌄ search</div>
+
+    <div id="dashboard">
+      <div id="dashboardTop">
+        <input id="searchInput" type="text" placeholder="Search words, #tag, or page number..." />
+        <button id="closeDashboard" type="button">Close</button>
+      </div>
+
+      <div id="tabs">
+        <button class="tabButton active" data-tab="all" type="button">All</button>
+        <button class="tabButton" data-tab="favorites" type="button">Favorites</button>
+        <button class="tabButton" data-tab="tags" type="button">Tags</button>
+      </div>
+
+      <div id="dashboardContent"></div>
+    </div>
+
     <div id="editor" contenteditable="true" data-placeholder="Start typing..."></div>
-    <div id="pageIndicator">page 1 / 1</div>
+
+    <button id="plusButton" type="button">+</button>
+
+    <div id="plusMenu">
+      <button class="menuButton" id="insertPhotoButton" type="button">Insert image</button>
+      <button class="menuButton" id="cameraButton" type="button">Camera</button>
+      <button class="menuButton" id="sketchButton" type="button">Add sketch</button>
+
+      <div class="menuDivider"></div>
+
+      <button class="menuButton" id="favoriteButton" type="button">Favorite page</button>
+      <button class="menuButton" id="tagButton" type="button">Add tag</button>
+
+      <div class="menuDivider"></div>
+
+      <button class="menuButton" id="selectAllButton" type="button">Select all</button>
+      <button class="menuButton" id="copyButton" type="button">Copy page</button>
+      <button class="menuButton" id="pasteButton" type="button">Paste</button>
+
+      <div class="menuDivider"></div>
+
+      <button class="menuButton" id="exportTxtButton" type="button">Export .txt</button>
+      <button class="menuButton" id="exportHtmlButton" type="button">Export .html</button>
+      <button class="menuButton" id="exportMdButton" type="button">Export .md</button>
+      <button class="menuButton" id="exportPdfButton" type="button">Export PDF</button>
+    </div>
+
+    <div id="bottomMeta">00/00/00, 00:00:00 · page 1 / 1</div>
+
+    <input id="photoInput" type="file" accept="image/*" hidden />
+    <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden />
+  </div>
+
+  <div id="sketchModal">
+    <div id="sketchToolbar">
+      <button id="closeSketchButton" type="button">Cancel</button>
+
+      <select id="sketchSize">
+        <option value="small">Small</option>
+        <option value="medium" selected>Medium</option>
+        <option value="page">Page</option>
+      </select>
+
+      <button id="clearSketchButton" type="button">Clear</button>
+      <button id="saveSketchButton" type="button">Insert sketch</button>
+    </div>
+
+    <div id="sketchCanvasWrap">
+      <canvas id="sketchCanvas"></canvas>
+    </div>
   </div>
 
   <script type="module">
@@ -118,10 +470,46 @@
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const editor = document.getElementById("editor");
-    const pageIndicator = document.getElementById("pageIndicator");
+    const bottomMeta = document.getElementById("bottomMeta");
 
-    let pages = [""];
+    const topHandle = document.getElementById("topHandle");
+    const dashboard = document.getElementById("dashboard");
+    const closeDashboard = document.getElementById("closeDashboard");
+    const searchInput = document.getElementById("searchInput");
+    const dashboardContent = document.getElementById("dashboardContent");
+    const tabButtons = document.querySelectorAll(".tabButton");
+
+    const plusButton = document.getElementById("plusButton");
+    const plusMenu = document.getElementById("plusMenu");
+
+    const photoInput = document.getElementById("photoInput");
+    const cameraInput = document.getElementById("cameraInput");
+
+    const insertPhotoButton = document.getElementById("insertPhotoButton");
+    const cameraButton = document.getElementById("cameraButton");
+    const sketchButton = document.getElementById("sketchButton");
+    const favoriteButton = document.getElementById("favoriteButton");
+    const tagButton = document.getElementById("tagButton");
+    const selectAllButton = document.getElementById("selectAllButton");
+    const copyButton = document.getElementById("copyButton");
+    const pasteButton = document.getElementById("pasteButton");
+
+    const exportTxtButton = document.getElementById("exportTxtButton");
+    const exportHtmlButton = document.getElementById("exportHtmlButton");
+    const exportMdButton = document.getElementById("exportMdButton");
+    const exportPdfButton = document.getElementById("exportPdfButton");
+
+    const sketchModal = document.getElementById("sketchModal");
+    const closeSketchButton = document.getElementById("closeSketchButton");
+    const clearSketchButton = document.getElementById("clearSketchButton");
+    const saveSketchButton = document.getElementById("saveSketchButton");
+    const sketchSize = document.getElementById("sketchSize");
+    const sketchCanvas = document.getElementById("sketchCanvas");
+    const sketchCtx = sketchCanvas.getContext("2d");
+
+    let pages = [];
     let currentPage = 0;
+    let activeTab = "all";
 
     let saveTimer = null;
     let lastSavedContent = "";
@@ -131,65 +519,128 @@
     let startEdge = null;
     let isDragging = false;
 
-    // Page flip settings.
-    // Lower EDGE_SIZE = harder to accidentally trigger.
-    // Higher FLIP_DISTANCE = longer swipe needed.
+    let dashboardPullStartY = 0;
+    let dashboardPulling = false;
+
+    let sketchDrawing = false;
+
     const EDGE_SIZE = 28;
     const FLIP_DISTANCE = 170;
 
+    function createPage(html = "") {
+      const now = new Date().toISOString();
+
+      return {
+        id: "page-" + Date.now() + "-" + Math.random().toString(36).slice(2),
+        html,
+        createdAt: now,
+        updatedAt: now,
+        favorite: false,
+        tags: []
+      };
+    }
+
+    function normalizePage(page) {
+      if (typeof page === "string") {
+        return createPage(page);
+      }
+
+      return {
+        id: page.id || "page-" + Date.now() + "-" + Math.random().toString(36).slice(2),
+        html: page.html || "",
+        createdAt: page.createdAt || new Date().toISOString(),
+        updatedAt: page.updatedAt || page.createdAt || new Date().toISOString(),
+        favorite: Boolean(page.favorite),
+        tags: Array.isArray(page.tags) ? page.tags : []
+      };
+    }
+
+    function currentPageObject() {
+      if (!pages[currentPage]) {
+        pages[currentPage] = createPage("");
+      }
+
+      return pages[currentPage];
+    }
+
     function encodePages() {
       return JSON.stringify({
-        type: "scratchy-pages-html",
-        version: 4,
-        pages: pages
+        type: "scratchy-pages-object",
+        version: 5,
+        pages
       });
     }
 
     function decodePages(content) {
-      if (!content) return [""];
+      if (!content) return [createPage("")];
 
       try {
         const parsed = JSON.parse(content);
 
-        if (
-          parsed &&
-          Array.isArray(parsed.pages) &&
-          (
-            parsed.type === "scratchy-pages-html" ||
-            parsed.type === "scratchy-pages"
-          )
-        ) {
-          return parsed.pages.length ? parsed.pages : [""];
+        if (parsed && Array.isArray(parsed.pages)) {
+          return parsed.pages.length
+            ? parsed.pages.map(normalizePage)
+            : [createPage("")];
         }
       } catch (e) {
         // Old plain-text note.
       }
 
-      return [escapeHTML(content)];
+      return [createPage(escapeHTML(content))];
     }
 
     function escapeHTML(text) {
-      return text
+      return String(text)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
     }
 
-    function updatePageIndicator() {
-      pageIndicator.textContent = `page ${currentPage + 1} / ${pages.length}`;
+    function stripHTML(html) {
+      const div = document.createElement("div");
+      div.innerHTML = html || "";
+      return div.innerText || "";
+    }
+
+    function formatDateTime(iso) {
+      const date = new Date(iso);
+
+      const dd = String(date.getDate()).padStart(2, "0");
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const yy = String(date.getFullYear()).slice(-2);
+
+      const hh = String(date.getHours()).padStart(2, "0");
+      const min = String(date.getMinutes()).padStart(2, "0");
+      const ss = String(date.getSeconds()).padStart(2, "0");
+
+      return `${dd}/${mm}/${yy}, ${hh}:${min}:${ss}`;
+    }
+
+    function updateBottomMeta() {
+      const page = currentPageObject();
+      bottomMeta.textContent =
+        `${formatDateTime(page.createdAt)} · page ${currentPage + 1} / ${pages.length}`;
     }
 
     function saveCurrentPageLocally() {
-      pages[currentPage] = editor.innerHTML;
+      const page = currentPageObject();
+      page.html = editor.innerHTML;
+      page.updatedAt = new Date().toISOString();
     }
 
     function renderPage() {
-      editor.innerHTML = pages[currentPage] || "";
+      const page = currentPageObject();
+
+      editor.innerHTML = page.html || "";
+
       removeOldStrikeFormatting();
       makeLinksClickable();
       applyStrikeFormatting();
+
       saveCurrentPageLocally();
-      updatePageIndicator();
+      updateBottomMeta();
+      updateFavoriteButton();
+
       editor.focus();
       moveCursorToEnd();
     }
@@ -333,6 +784,7 @@
       makeLinksClickable();
       applyStrikeFormatting();
       saveCurrentPageLocally();
+      updateBottomMeta();
     }
 
     async function reduceImage(file, maxWidth = 700, maxHeight = 700, quality = 0.65) {
@@ -362,9 +814,7 @@
           const ctx = canvas.getContext("2d");
           ctx.drawImage(img, 0, 0, width, height);
 
-          const reducedDataUrl = canvas.toDataURL("image/jpeg", quality);
-
-          resolve(reducedDataUrl);
+          resolve(canvas.toDataURL("image/jpeg", quality));
         };
 
         img.onerror = reject;
@@ -392,6 +842,23 @@
       selection.addRange(range);
     }
 
+    async function insertImageFile(file) {
+      if (!file) return;
+
+      const reducedImage = await reduceImage(file, 700, 700, 0.65);
+
+      const img = document.createElement("img");
+      img.className = "pasted-image";
+      img.src = reducedImage;
+      img.alt = "Inserted image";
+
+      insertNodeAtCursor(img);
+      insertNodeAtCursor(document.createElement("br"));
+
+      saveCurrentPageLocally();
+      scheduleSave();
+    }
+
     async function loadNote() {
       const { data, error } = await supabase
         .from("notes")
@@ -406,8 +873,6 @@
       }
 
       pages = decodePages(data?.content || "");
-
-      // Begin at last page.
       currentPage = pages.length - 1;
 
       renderPage();
@@ -424,7 +889,7 @@
       const { error } = await supabase
         .from("notes")
         .update({
-          content: content,
+          content,
           updated_at: new Date().toISOString()
         })
         .eq("id", "main");
@@ -451,7 +916,7 @@
         if (currentPage < pages.length - 1) {
           currentPage++;
         } else {
-          pages.push("");
+          pages.push(createPage(""));
           currentPage = pages.length - 1;
         }
 
@@ -476,16 +941,472 @@
       }, 190);
     }
 
-    editor.addEventListener("input", function () {
-      // Do NOT auto-format while typing.
-      // This prevents the bug where everything keeps being crossed out.
+    function openDashboard() {
+      applySmartFormatting();
+      dashboard.classList.add("open");
+      renderDashboard();
+      searchInput.focus();
+    }
+
+    function closeDashboardPanel() {
+      dashboard.classList.remove("open");
+      editor.focus();
+    }
+
+    function renderDashboard() {
+      const query = searchInput.value.trim().toLowerCase();
+
+      if (activeTab === "tags") {
+        renderTagsDashboard(query);
+        return;
+      }
+
+      let list = pages.map((page, index) => ({ page, index }));
+
+      if (activeTab === "favorites") {
+        list = list.filter((item) => item.page.favorite);
+      }
+
+      if (query) {
+        const number = Number(query);
+
+        list = list.filter(({ page, index }) => {
+          const text = stripHTML(page.html).toLowerCase();
+          const tags = page.tags.join(" ").toLowerCase();
+
+          if (Number.isInteger(number) && number > 0) {
+            return index + 1 === number;
+          }
+
+          if (query.startsWith("#")) {
+            return page.tags.some((tag) => ("#" + tag.toLowerCase()).includes(query));
+          }
+
+          return text.includes(query) || tags.includes(query);
+        });
+      }
+
+      dashboardContent.innerHTML = "";
+
+      if (!list.length) {
+        dashboardContent.innerHTML = `<div class="emptyState">Nothing found.</div>`;
+        return;
+      }
+
+      list.forEach(({ page, index }) => {
+        const card = document.createElement("div");
+        card.className = "pageCard";
+
+        const preview = stripHTML(page.html).trim() || "[empty page]";
+        const favorite = page.favorite ? "★" : "☆";
+
+        card.innerHTML = `
+          <div class="pageCardHeader">
+            <span>${favorite} page ${index + 1} / ${pages.length}</span>
+            <span>${formatDateTime(page.createdAt)}</span>
+          </div>
+          <div class="pageCardPreview"></div>
+          <div class="pageCardTags"></div>
+        `;
+
+        card.querySelector(".pageCardPreview").textContent = preview.slice(0, 220);
+
+        const tagsEl = card.querySelector(".pageCardTags");
+        if (page.tags.length) {
+          tagsEl.textContent = page.tags.map((tag) => "#" + tag).join(" ");
+        }
+
+        card.addEventListener("click", function () {
+          currentPage = index;
+          closeDashboardPanel();
+          renderPage();
+        });
+
+        dashboardContent.appendChild(card);
+      });
+    }
+
+    function renderTagsDashboard(query) {
+      const tagMap = new Map();
+
+      pages.forEach((page, index) => {
+        page.tags.forEach((tag) => {
+          const normalized = tag.trim();
+          if (!normalized) return;
+
+          if (!tagMap.has(normalized)) {
+            tagMap.set(normalized, []);
+          }
+
+          tagMap.get(normalized).push(index);
+        });
+      });
+
+      dashboardContent.innerHTML = "";
+
+      const tags = [...tagMap.keys()]
+        .sort()
+        .filter((tag) => !query || tag.toLowerCase().includes(query.replace("#", "")));
+
+      if (!tags.length) {
+        dashboardContent.innerHTML = `<div class="emptyState">No tags yet.</div>`;
+        return;
+      }
+
+      tags.forEach((tag) => {
+        const pill = document.createElement("button");
+        pill.className = "tagPill";
+        pill.type = "button";
+        pill.textContent = `#${tag} (${tagMap.get(tag).length})`;
+
+        pill.addEventListener("click", function () {
+          activeTab = "all";
+          tabButtons.forEach((button) => {
+            button.classList.toggle("active", button.dataset.tab === "all");
+          });
+          searchInput.value = "#" + tag;
+          renderDashboard();
+        });
+
+        dashboardContent.appendChild(pill);
+      });
+    }
+
+    function updateFavoriteButton() {
+      const page = currentPageObject();
+      favoriteButton.textContent = page.favorite ? "Unfavorite page" : "Favorite page";
+    }
+
+    function toggleFavorite() {
+      const page = currentPageObject();
+      page.favorite = !page.favorite;
+      updateFavoriteButton();
       saveCurrentPageLocally();
+      scheduleSave();
+    }
+
+    function addTag() {
+      const page = currentPageObject();
+      const raw = prompt("Tag name?");
+
+      if (!raw) return;
+
+      const tag = raw.trim().replace(/^#/, "");
+
+      if (!tag) return;
+
+      if (!page.tags.includes(tag)) {
+        page.tags.push(tag);
+      }
+
+      saveCurrentPageLocally();
+      scheduleSave();
+    }
+
+    function downloadTextFile(filename, content, mime) {
+      const blob = new Blob([content], { type: mime });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+
+      URL.revokeObjectURL(url);
+    }
+
+    function pageBaseName() {
+      return `scratchy-page-${currentPage + 1}`;
+    }
+
+    function exportTxt() {
+      applySmartFormatting();
+
+      const text = stripHTML(currentPageObject().html)
+        .replace(/\n{3,}/g, "\n\n");
+
+      downloadTextFile(pageBaseName() + ".txt", text, "text/plain;charset=utf-8");
+    }
+
+    function htmlWithImagePlaceholders() {
+      applySmartFormatting();
+
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = currentPageObject().html;
+
+      wrapper.querySelectorAll("img").forEach((img, index) => {
+        const placeholder = `IMAGE_PLACEHOLDER_${index + 1}.jpg`;
+        img.setAttribute("src", placeholder);
+        img.setAttribute("alt", placeholder);
+
+        const comment = document.createComment(
+          ` Replace ${placeholder} with real image URL, file name, or path `
+        );
+
+        img.before(comment);
+      });
+
+      return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${pageBaseName()}</title>
+</head>
+<body>
+${wrapper.innerHTML}
+</body>
+</html>`;
+    }
+
+    function exportHtml() {
+      downloadTextFile(
+        pageBaseName() + ".html",
+        htmlWithImagePlaceholders(),
+        "text/html;charset=utf-8"
+      );
+    }
+
+    function htmlNodeToMarkdown(node, imageCounter) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return node.nodeValue;
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return "";
+      }
+
+      const tag = node.tagName.toLowerCase();
+
+      if (tag === "br") return "\n";
+
+      if (tag === "img") {
+        imageCounter.count += 1;
+        return `\n![image ${imageCounter.count}](IMAGE_PLACEHOLDER_${imageCounter.count}.jpg)\n`;
+      }
+
+      if (tag === "a") {
+        const text = node.innerText || node.href;
+        return `[${text}](${node.href})`;
+      }
+
+      if (tag === "span" && node.classList.contains("scratchy-strike")) {
+        return `~~${node.innerText}~~`;
+      }
+
+      let result = "";
+
+      node.childNodes.forEach((child) => {
+        result += htmlNodeToMarkdown(child, imageCounter);
+      });
+
+      if (tag === "div" || tag === "p") {
+        result += "\n";
+      }
+
+      return result;
+    }
+
+    function exportMd() {
+      applySmartFormatting();
+
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = currentPageObject().html;
+
+      const imageCounter = { count: 0 };
+      let md = "";
+
+      wrapper.childNodes.forEach((node) => {
+        md += htmlNodeToMarkdown(node, imageCounter);
+      });
+
+      md = md
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+
+      downloadTextFile(pageBaseName() + ".md", md, "text/markdown;charset=utf-8");
+    }
+
+    function exportPdf() {
+      applySmartFormatting();
+
+      const page = currentPageObject();
+
+      const printWindow = window.open("", "_blank");
+
+      if (!printWindow) {
+        alert("Popup blocked. Allow popups to export PDF.");
+        return;
+      }
+
+      printWindow.document.write(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${pageBaseName()}</title>
+  <style>
+    body {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #111;
+      padding: 24px;
+    }
+
+    img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 12px 0;
+    }
+
+    .scratchy-strike {
+      text-decoration: line-through;
+      color: #555;
+    }
+
+    a {
+      color: #0645ad;
+      text-decoration: underline;
+    }
+
+    .meta {
+      color: #777;
+      font-size: 12px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="meta">${formatDateTime(page.createdAt)} · page ${currentPage + 1} / ${pages.length}</div>
+  ${page.html}
+</body>
+</html>
+      `);
+
+      printWindow.document.close();
+
+      setTimeout(function () {
+        printWindow.focus();
+        printWindow.print();
+      }, 300);
+    }
+
+    function selectAllEditor() {
+      const range = document.createRange();
+      const selection = window.getSelection();
+
+      range.selectNodeContents(editor);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    async function copyPage() {
+      applySmartFormatting();
+
+      const html = currentPageObject().html;
+      const text = stripHTML(html);
+
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([html], { type: "text/html" }),
+            "text/plain": new Blob([text], { type: "text/plain" })
+          })
+        ]);
+      } catch (e) {
+        await navigator.clipboard.writeText(text);
+      }
+    }
+
+    async function pasteFromClipboard() {
+      try {
+        const text = await navigator.clipboard.readText();
+        document.execCommand("insertText", false, text);
+        saveCurrentPageLocally();
+        scheduleSave();
+      } catch (e) {
+        alert("Paste from the keyboard/menu instead.");
+      }
+    }
+
+    function openSketch(size = "medium") {
+      sketchModal.classList.add("open");
+      setSketchCanvasSize(size);
+      clearSketch();
+    }
+
+    function closeSketch() {
+      sketchModal.classList.remove("open");
+    }
+
+    function setSketchCanvasSize(size) {
+      let width = 500;
+      let height = 350;
+
+      if (size === "small") {
+        width = 320;
+        height = 220;
+      }
+
+      if (size === "medium") {
+        width = 560;
+        height = 380;
+      }
+
+      if (size === "page") {
+        width = Math.min(window.innerWidth - 32, 760);
+        height = Math.min(window.innerHeight - 110, 980);
+      }
+
+      sketchCanvas.width = width;
+      sketchCanvas.height = height;
+
+      clearSketch();
+    }
+
+    function clearSketch() {
+      sketchCtx.fillStyle = "#ffffff";
+      sketchCtx.fillRect(0, 0, sketchCanvas.width, sketchCanvas.height);
+      sketchCtx.strokeStyle = "#111111";
+      sketchCtx.lineWidth = 3;
+      sketchCtx.lineCap = "round";
+      sketchCtx.lineJoin = "round";
+    }
+
+    function sketchPoint(event) {
+      const rect = sketchCanvas.getBoundingClientRect();
+
+      return {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      };
+    }
+
+    function insertSketch() {
+      const dataUrl = sketchCanvas.toDataURL("image/png");
+
+      const img = document.createElement("img");
+      img.className = "sketch-image";
+      img.src = dataUrl;
+      img.alt = "Sketch";
+
+      insertNodeAtCursor(img);
+      insertNodeAtCursor(document.createElement("br"));
+
+      closeSketch();
+
+      saveCurrentPageLocally();
+      scheduleSave();
+    }
+
+    editor.addEventListener("input", function () {
+      saveCurrentPageLocally();
+      updateBottomMeta();
       scheduleSave();
     });
 
     editor.addEventListener("blur", function () {
-      // Format only when leaving the editor.
-      // Removing !!! will also remove the strikeout next time this runs.
       applySmartFormatting();
       scheduleSave();
     });
@@ -506,20 +1427,7 @@
           e.preventDefault();
 
           const file = item.getAsFile();
-          if (!file) return;
-
-          const reducedImage = await reduceImage(file, 700, 700, 0.65);
-
-          const img = document.createElement("img");
-          img.className = "pasted-image";
-          img.src = reducedImage;
-          img.alt = "Pasted image";
-
-          insertNodeAtCursor(img);
-          insertNodeAtCursor(document.createElement("br"));
-
-          saveCurrentPageLocally();
-          scheduleSave();
+          await insertImageFile(file);
 
           return;
         }
@@ -529,7 +1437,6 @@
     editor.addEventListener("pointerdown", function (e) {
       const selection = window.getSelection();
 
-      // Do not start page flipping while text is selected.
       if (selection && !selection.isCollapsed) {
         isDragging = false;
         startEdge = null;
@@ -557,7 +1464,6 @@
 
       const selection = window.getSelection();
 
-      // If the drag created text selection, do not flip.
       if (selection && !selection.isCollapsed) {
         isDragging = false;
         startEdge = null;
@@ -569,29 +1475,174 @@
 
       isDragging = false;
 
-      // Needs to be a deliberate horizontal swipe.
       if (Math.abs(diffX) < FLIP_DISTANCE) {
         startEdge = null;
         return;
       }
 
-      // Ignore diagonal/vertical movement.
       if (Math.abs(diffY) > Math.abs(diffX) * 0.45) {
         startEdge = null;
         return;
       }
 
-      // From right edge, swipe left = next page.
       if (startEdge === "right" && diffX < 0) {
         goNextPage();
       }
 
-      // From left edge, swipe right = previous page.
       if (startEdge === "left" && diffX > 0) {
         goPreviousPage();
       }
 
       startEdge = null;
+    });
+
+    topHandle.addEventListener("click", openDashboard);
+
+    topHandle.addEventListener("pointerdown", function (e) {
+      dashboardPullStartY = e.clientY;
+      dashboardPulling = true;
+    });
+
+    window.addEventListener("pointerup", function (e) {
+      if (!dashboardPulling) return;
+
+      const diffY = e.clientY - dashboardPullStartY;
+      dashboardPulling = false;
+
+      if (diffY > 65) {
+        openDashboard();
+      }
+    });
+
+    closeDashboard.addEventListener("click", closeDashboardPanel);
+
+    searchInput.addEventListener("input", renderDashboard);
+
+    tabButtons.forEach((button) => {
+      button.addEventListener("click", function () {
+        activeTab = button.dataset.tab;
+
+        tabButtons.forEach((btn) => {
+          btn.classList.toggle("active", btn === button);
+        });
+
+        renderDashboard();
+      });
+    });
+
+    plusButton.addEventListener("click", function () {
+      plusMenu.classList.toggle("open");
+    });
+
+    document.addEventListener("click", function (e) {
+      if (!plusMenu.contains(e.target) && e.target !== plusButton) {
+        plusMenu.classList.remove("open");
+      }
+    });
+
+    insertPhotoButton.addEventListener("click", function () {
+      plusMenu.classList.remove("open");
+      photoInput.click();
+    });
+
+    cameraButton.addEventListener("click", function () {
+      plusMenu.classList.remove("open");
+      cameraInput.click();
+    });
+
+    photoInput.addEventListener("change", async function () {
+      await insertImageFile(photoInput.files?.[0]);
+      photoInput.value = "";
+    });
+
+    cameraInput.addEventListener("change", async function () {
+      await insertImageFile(cameraInput.files?.[0]);
+      cameraInput.value = "";
+    });
+
+    sketchButton.addEventListener("click", function () {
+      plusMenu.classList.remove("open");
+      openSketch(sketchSize.value);
+    });
+
+    favoriteButton.addEventListener("click", function () {
+      plusMenu.classList.remove("open");
+      toggleFavorite();
+    });
+
+    tagButton.addEventListener("click", function () {
+      plusMenu.classList.remove("open");
+      addTag();
+    });
+
+    selectAllButton.addEventListener("click", function () {
+      plusMenu.classList.remove("open");
+      selectAllEditor();
+    });
+
+    copyButton.addEventListener("click", async function () {
+      plusMenu.classList.remove("open");
+      await copyPage();
+    });
+
+    pasteButton.addEventListener("click", async function () {
+      plusMenu.classList.remove("open");
+      await pasteFromClipboard();
+    });
+
+    exportTxtButton.addEventListener("click", function () {
+      plusMenu.classList.remove("open");
+      exportTxt();
+    });
+
+    exportHtmlButton.addEventListener("click", function () {
+      plusMenu.classList.remove("open");
+      exportHtml();
+    });
+
+    exportMdButton.addEventListener("click", function () {
+      plusMenu.classList.remove("open");
+      exportMd();
+    });
+
+    exportPdfButton.addEventListener("click", function () {
+      plusMenu.classList.remove("open");
+      exportPdf();
+    });
+
+    sketchSize.addEventListener("change", function () {
+      setSketchCanvasSize(sketchSize.value);
+    });
+
+    closeSketchButton.addEventListener("click", closeSketch);
+    clearSketchButton.addEventListener("click", clearSketch);
+    saveSketchButton.addEventListener("click", insertSketch);
+
+    sketchCanvas.addEventListener("pointerdown", function (e) {
+      sketchDrawing = true;
+      sketchCanvas.setPointerCapture(e.pointerId);
+
+      const point = sketchPoint(e);
+
+      sketchCtx.beginPath();
+      sketchCtx.moveTo(point.x, point.y);
+    });
+
+    sketchCanvas.addEventListener("pointermove", function (e) {
+      if (!sketchDrawing) return;
+
+      const point = sketchPoint(e);
+
+      sketchCtx.lineTo(point.x, point.y);
+      sketchCtx.stroke();
+    });
+
+    sketchCanvas.addEventListener("pointerup", function () {
+      sketchDrawing = false;
+    });
+
+    sketchCanvas.addEventListener("pointercancel", function () {
+      sketchDrawing = false;
     });
 
     window.addEventListener("beforeunload", saveNote);
