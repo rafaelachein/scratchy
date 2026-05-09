@@ -1,106 +1,62 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Notes</title>
+<script type="module">
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-  <style>
-    html,
-    body {
-      margin: 0;
-      width: 100%;
-      height: 100%;
-      background: #111;
+  const SUPABASE_URL = "https://bycoavnmcjdvicjhatly.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_tg_ndX5hPkpLv64Mub1iOg_3N8bmsRk";
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const editor = document.getElementById("editor");
+
+  let saveTimer = null;
+  let lastSavedContent = "";
+
+  async function loadNote() {
+    const { data, error } = await supabase
+      .from("notes")
+      .select("content")
+      .eq("id", "main")
+      .single();
+
+    if (error) {
+      console.error("Load error:", error);
+      editor.placeholder = "Error loading note. Check Supabase table/policies.";
+      return;
     }
 
-    textarea {
-      box-sizing: border-box;
-      width: 100%;
-      height: 100vh;
-      padding: 24px;
-      border: none;
-      outline: none;
-      resize: none;
+    editor.value = data?.content || "";
+    lastSavedContent = editor.value;
+  }
 
-      background: #111;
-      color: #eee;
+  async function saveNote() {
+    const content = editor.value;
 
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 18px;
-      line-height: 1.6;
+    if (content === lastSavedContent) return;
+
+    const { error } = await supabase
+      .from("notes")
+      .update({
+        content,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", "main");
+
+    if (error) {
+      console.error("Save error:", error);
+      return;
     }
 
-    textarea::placeholder {
-      color: #555;
-    }
-  </style>
-</head>
+    lastSavedContent = content;
+  }
 
-<body>
-  <textarea id="editor" placeholder="Start typing..."></textarea>
+  editor.addEventListener("input", () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNote, 700);
+  });
 
-  <script type="module">
-    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+  window.addEventListener("beforeunload", () => {
+    saveNote();
+  });
 
-    const SUPABASE_URL = "PASTE_YOUR_SUPABASE_URL_HERE";
-    const SUPABASE_KEY = "PASTE_YOUR_SUPABASE_PUBLISHABLE_KEY_HERE";
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    const editor = document.getElementById("editor");
-
-    let saveTimer = null;
-    let lastSavedContent = "";
-
-    async function loadNote() {
-      const { data, error } = await supabase
-        .from("notes")
-        .select("content")
-        .eq("id", "main")
-        .single();
-
-      if (error) {
-        console.error("Load error:", error);
-        editor.placeholder = "Error loading note.";
-        return;
-      }
-
-      editor.value = data?.content || "";
-      lastSavedContent = editor.value;
-    }
-
-    async function saveNote() {
-      const content = editor.value;
-
-      if (content === lastSavedContent) return;
-
-      const { error } = await supabase
-        .from("notes")
-        .update({
-          content,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", "main");
-
-      if (error) {
-        console.error("Save error:", error);
-        return;
-      }
-
-      lastSavedContent = content;
-    }
-
-    editor.addEventListener("input", () => {
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(saveNote, 700);
-    });
-
-    window.addEventListener("beforeunload", () => {
-      saveNote();
-    });
-
-    loadNote();
-  </script>
-</body>
-</html>
+  loadNote();
+</script>
