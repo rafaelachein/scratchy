@@ -45,7 +45,7 @@
       white-space: pre-wrap;
       word-break: break-word;
 
-      transition: transform 0.18s ease, opacity 0.18s ease;
+      transition: transform 0.22s ease, opacity 0.22s ease;
       touch-action: pan-y;
     }
 
@@ -56,12 +56,12 @@
     }
 
     #editor.flip-next {
-      transform: translateX(-45px);
+      transform: translateX(-55px);
       opacity: 0.45;
     }
 
     #editor.flip-prev {
-      transform: translateX(45px);
+      transform: translateX(55px);
       opacity: 0.45;
     }
 
@@ -69,6 +69,21 @@
       color: #4ea1ff;
       text-decoration: underline;
       cursor: pointer;
+    }
+
+    #editor s {
+      color: #777;
+      text-decoration-thickness: 2px;
+    }
+
+    #editor img.pasted-image {
+      max-width: min(100%, 360px);
+      max-height: 260px;
+      height: auto;
+      display: block;
+      margin: 12px 0;
+      border-radius: 6px;
+      object-fit: contain;
     }
 
     #pageIndicator {
@@ -106,18 +121,26 @@
 
     let pages = [""];
     let currentPage = 0;
+
     let saveTimer = null;
+    let formatTimer = null;
     let lastSavedContent = "";
 
     let startX = 0;
     let startY = 0;
+    let startEdge = null;
     let isDragging = false;
+
+    // Less sensitive flipping.
+    // You must start near the edge and drag a good distance.
+    const EDGE_SIZE = 28;
+    const FLIP_DISTANCE = 170;
 
     function encodePages() {
       return JSON.stringify({
-        type: "scratchy-pages",
-        version: 1,
-        pages
+        type: "scratchy-pages-html",
+        version: 3,
+        pages: pages
       });
     }
 
@@ -129,8 +152,11 @@
 
         if (
           parsed &&
-          parsed.type === "scratchy-pages" &&
-          Array.isArray(parsed.pages)
+          Array.isArray(parsed.pages) &&
+          (
+            parsed.type === "scratchy-pages-html" ||
+            parsed.type === "scratchy-pages"
+          )
         ) {
           return parsed.pages.length ? parsed.pages : [""];
         }
@@ -138,7 +164,7 @@
         // Old version: plain text note.
       }
 
-      return [content];
+      return [escapeHTML(content)];
     }
 
     function escapeHTML(text) {
@@ -148,39 +174,271 @@
         .replace(/>/g, "&gt;");
     }
 
-    function linkify(text) {
-      const safe = escapeHTML(text);
-
-      return safe.replace(
-        /(https?:\/\/[^\s<]+|www\.[^\s<]+)/g,
-        function (url) {
-          const href = url.startsWith("http") ? url : "https://" + url;
-          return `<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>`;
-        }
-      );
-    }
-
     function updatePageIndicator() {
       pageIndicator.textContent = `page ${currentPage + 1} / ${pages.length}`;
     }
 
+    function saveCurrentPageLocally() {
+      pages[currentPage] = editor.innerHTML;
+    }
+
     function renderPage() {
-      editor.innerHTML = linkify(pages[currentPage] || "");
+      editor.innerHTML = pages[currentPage] || "";
+
+      applySmartFormatting(false);
       updatePageIndicator();
 
-      // Put cursor at the end after changing pages.
       editor.focus();
+      moveCursorToEnd();
+    }
 
+    function moveCursorToEnd() {
       const range = document.createRange();
       const selection = window.getSelection();
+
       range.selectNodeContents(editor);
       range.collapse(false);
+
       selection.removeAllRanges();
       selection.addRange(range);
     }
 
-    function saveCurrentPageLocally() {
-      pages[currentPage] = editor.innerText;
+    function getCaretCharacterOffset() {
+      const selection = window.getSelection();
+
+      if (!selection || selection.rangeCount === 0) return 0;
+
+      const range = selection.getRangeAt(0);
+      const preRange = range.cloneRange();
+
+      preRange.selectNodeContents(editor);
+      preRange.setEnd(range.endContainer, range.endOffset);
+
+      return preRange.toString().length;
+    }
+
+    function setCaretCharacterOffset(offset) {
+      const selection = window.getSelection();
+      const range = document.createRange();
+
+      let currentOffset = 0;
+      let found = false;
+
+      function walk(node) {
+        if (found) return;
+
+        if (node.nodeType === Node.TEXT_NODE) {
+          const nextOffset = currentOffset + node.nodeValue.length;
+
+          if (offset <= nextOffset) {
+            range.setStart(node, Math.max(0, offset - currentOffset));
+            range.collapse(true);
+            found = true;
+            return;
+          }
+
+          currentOffset = nextOffset;
+        } else {
+          for (const child of node.childNodes) {
+            walk(child);
+            if (found) return;
+          }
+        }
+      }
+
+      walk(editor);
+
+      if (!found) {
+        range.selectNodeContents(editor);
+        range.collapse(false);
+      }
+
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    function applySmartFormatting(keepCursor = true) {
+      const caretOffset = keepCursor ? getCaretCharacterOffset() : 0;
+
+      strikeBangSentences();
+      makeLinksClickable();
+
+      if (keepCursor) {
+        setCaretCharacterOffset(caretOffset);
+      }
+
+      saveCurrentPageLocally();
+    }
+
+    function makeLinksClickable() {
+      const walker = document.createTreeWalker(
+        editor,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode(node) {
+            if (
+              node.parentElement &&
+              node.parentElement.closest("a, s, script, style")
+            ) {
+              return NodeFilter.FILTER_REJECT;
+            }
+
+            if (/(https?:\/\/[^\s<]+|www\.[^\s<]+)/.test(node.nodeValue)) {
+              return NodeFilter.FILTER_ACCEPT;
+            }
+
+            return NodeFilter.FILTER_REJECT;
+          }
+        }
+      );
+
+      const nodes = [];
+
+      while (walker.nextNode()) {
+        nodes.push(walker.currentNode);
+      }
+
+      nodes.forEach((textNode) => {
+        const text = textNode.nodeValue;
+        const fragment = document.createDocumentFragment();
+
+        const regex = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/g;
+        let lastIndex = 0;
+        let match;
+
+        while ((match = regex.exec(text)) !== null) {
+          const before = text.slice(lastIndex, match.index);
+          if (before) fragment.appendChild(document.createTextNode(before));
+
+          const url = match[0];
+          const href = url.startsWith("http") ? url : "https://" + url;
+
+          const a = document.createElement("a");
+          a.href = href;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.textContent = url;
+
+          fragment.appendChild(a);
+          lastIndex = match.index + url.length;
+        }
+
+        const after = text.slice(lastIndex);
+        if (after) fragment.appendChild(document.createTextNode(after));
+
+        textNode.replaceWith(fragment);
+      });
+    }
+
+    function strikeBangSentences() {
+      const walker = document.createTreeWalker(
+        editor,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode(node) {
+            if (
+              node.parentElement &&
+              node.parentElement.closest("a, s, script, style")
+            ) {
+              return NodeFilter.FILTER_REJECT;
+            }
+
+            if (/[^.!?\n]+!!!/g.test(node.nodeValue)) {
+              return NodeFilter.FILTER_ACCEPT;
+            }
+
+            return NodeFilter.FILTER_REJECT;
+          }
+        }
+      );
+
+      const nodes = [];
+
+      while (walker.nextNode()) {
+        nodes.push(walker.currentNode);
+      }
+
+      nodes.forEach((textNode) => {
+        const text = textNode.nodeValue;
+        const fragment = document.createDocumentFragment();
+
+        const regex = /([^.!?\n]+!!!)/g;
+        let lastIndex = 0;
+        let match;
+
+        while ((match = regex.exec(text)) !== null) {
+          const before = text.slice(lastIndex, match.index);
+          if (before) fragment.appendChild(document.createTextNode(before));
+
+          const s = document.createElement("s");
+          s.textContent = match[0];
+
+          fragment.appendChild(s);
+          lastIndex = match.index + match[0].length;
+        }
+
+        const after = text.slice(lastIndex);
+        if (after) fragment.appendChild(document.createTextNode(after));
+
+        textNode.replaceWith(fragment);
+      });
+    }
+
+    async function reduceImage(file, maxWidth = 700, maxHeight = 700, quality = 0.65) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const reader = new FileReader();
+
+        reader.onload = function () {
+          img.src = reader.result;
+        };
+
+        reader.onerror = reject;
+
+        img.onload = function () {
+          let width = img.width;
+          let height = img.height;
+
+          const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
+
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const reducedDataUrl = canvas.toDataURL("image/jpeg", quality);
+
+          resolve(reducedDataUrl);
+        };
+
+        img.onerror = reject;
+
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function insertNodeAtCursor(node) {
+      const selection = window.getSelection();
+
+      if (!selection || !selection.rangeCount) {
+        editor.appendChild(node);
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(node);
+
+      range.setStartAfter(node);
+      range.setEndAfter(node);
+
+      selection.removeAllRanges();
+      selection.addRange(range);
     }
 
     async function loadNote() {
@@ -206,7 +464,7 @@
     }
 
     async function saveNote() {
-      saveCurrentPageLocally();
+      applySmartFormatting(false);
 
       const content = encodePages();
 
@@ -233,8 +491,16 @@
       saveTimer = setTimeout(saveNote, 700);
     }
 
+    function scheduleFormatting() {
+      clearTimeout(formatTimer);
+
+      formatTimer = setTimeout(function () {
+        applySmartFormatting(true);
+      }, 900);
+    }
+
     function goNextPage() {
-      saveCurrentPageLocally();
+      applySmartFormatting(false);
 
       editor.classList.add("flip-next");
 
@@ -249,13 +515,13 @@
         renderPage();
         editor.classList.remove("flip-next");
         scheduleSave();
-      }, 160);
+      }, 190);
     }
 
     function goPreviousPage() {
       if (currentPage === 0) return;
 
-      saveCurrentPageLocally();
+      applySmartFormatting(false);
 
       editor.classList.add("flip-prev");
 
@@ -264,11 +530,17 @@
         renderPage();
         editor.classList.remove("flip-prev");
         scheduleSave();
-      }, 160);
+      }, 190);
     }
 
     editor.addEventListener("input", function () {
       saveCurrentPageLocally();
+      scheduleFormatting();
+      scheduleSave();
+    });
+
+    editor.addEventListener("blur", function () {
+      applySmartFormatting(false);
       scheduleSave();
     });
 
@@ -279,30 +551,101 @@
       }
     });
 
+    editor.addEventListener("paste", async function (e) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          e.preventDefault();
+
+          const file = item.getAsFile();
+          if (!file) return;
+
+          const reducedImage = await reduceImage(file, 700, 700, 0.65);
+
+          const img = document.createElement("img");
+          img.className = "pasted-image";
+          img.src = reducedImage;
+          img.alt = "Pasted image";
+
+          insertNodeAtCursor(img);
+          insertNodeAtCursor(document.createElement("br"));
+
+          saveCurrentPageLocally();
+          scheduleSave();
+
+          return;
+        }
+      }
+    });
+
     editor.addEventListener("pointerdown", function (e) {
+      const selection = window.getSelection();
+
+      // Do not start page flipping while text is selected.
+      if (selection && !selection.isCollapsed) {
+        isDragging = false;
+        startEdge = null;
+        return;
+      }
+
       startX = e.clientX;
       startY = e.clientY;
+      startEdge = null;
       isDragging = true;
+
+      if (startX <= EDGE_SIZE) {
+        startEdge = "left";
+      } else if (window.innerWidth - startX <= EDGE_SIZE) {
+        startEdge = "right";
+      }
     });
 
     editor.addEventListener("pointerup", function (e) {
-      if (!isDragging) return;
+      if (!isDragging || !startEdge) {
+        isDragging = false;
+        startEdge = null;
+        return;
+      }
+
+      const selection = window.getSelection();
+
+      // If the drag created text selection, do not flip.
+      if (selection && !selection.isCollapsed) {
+        isDragging = false;
+        startEdge = null;
+        return;
+      }
 
       const diffX = e.clientX - startX;
       const diffY = e.clientY - startY;
 
       isDragging = false;
 
-      // Ignore tiny movements and mostly vertical scrolling.
-      if (Math.abs(diffX) < 80 || Math.abs(diffY) > Math.abs(diffX)) return;
+      // Needs to be a deliberate horizontal swipe.
+      if (Math.abs(diffX) < FLIP_DISTANCE) {
+        startEdge = null;
+        return;
+      }
 
-      if (diffX < 0) {
-        // Drag left = next page.
+      // Ignore diagonal/vertical movement.
+      if (Math.abs(diffY) > Math.abs(diffX) * 0.45) {
+        startEdge = null;
+        return;
+      }
+
+      // From right edge, swipe left = next page.
+      if (startEdge === "right" && diffX < 0) {
         goNextPage();
-      } else {
-        // Drag right = previous page.
+      }
+
+      // From left edge, swipe right = previous page.
+      if (startEdge === "left" && diffX > 0) {
         goPreviousPage();
       }
+
+      startEdge = null;
     });
 
     window.addEventListener("beforeunload", saveNote);
