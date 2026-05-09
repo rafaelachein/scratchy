@@ -114,6 +114,40 @@
       user-select: none;
     }
 
+    .pageNavButton {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 34px;
+      height: 58px;
+      border: 1px solid #333;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.45);
+      color: #777;
+      font-size: 30px;
+      z-index: 12;
+      user-select: none;
+    }
+
+    .pageNavButton.left {
+      left: 8px;
+    }
+
+    .pageNavButton.right {
+      right: 8px;
+    }
+
+    .pageNavButton:hover {
+      color: #ddd;
+      background: rgba(20, 20, 20, 0.85);
+    }
+
+    @media (pointer: coarse) {
+      .pageNavButton {
+        opacity: 0.45;
+      }
+    }
+
     #bottomMeta {
       position: fixed;
       right: 12px;
@@ -368,7 +402,8 @@
       #plusButton,
       #plusMenu,
       #dashboard,
-      #sketchModal {
+      #sketchModal,
+      .pageNavButton {
         display: none !important;
       }
 
@@ -409,6 +444,9 @@
     </div>
 
     <div id="editor" contenteditable="true" data-placeholder="Start typing..."></div>
+
+    <button id="prevPageButton" class="pageNavButton left" type="button">‹</button>
+    <button id="nextPageButton" class="pageNavButton right" type="button">›</button>
 
     <button id="plusButton" type="button">+</button>
 
@@ -479,6 +517,9 @@
     const dashboardContent = document.getElementById("dashboardContent");
     const tabButtons = document.querySelectorAll(".tabButton");
 
+    const prevPageButton = document.getElementById("prevPageButton");
+    const nextPageButton = document.getElementById("nextPageButton");
+
     const plusButton = document.getElementById("plusButton");
     const plusMenu = document.getElementById("plusMenu");
 
@@ -524,8 +565,9 @@
 
     let sketchDrawing = false;
 
-    const EDGE_SIZE = 28;
-    const FLIP_DISTANCE = 170;
+    const IS_DESKTOP = window.matchMedia("(pointer: fine)").matches;
+    const EDGE_SIZE = IS_DESKTOP ? 64 : 28;
+    const FLIP_DISTANCE = IS_DESKTOP ? 90 : 170;
 
     function createPage(html = "") {
       const now = new Date().toISOString();
@@ -1061,9 +1103,11 @@
 
         pill.addEventListener("click", function () {
           activeTab = "all";
+
           tabButtons.forEach((button) => {
             button.classList.toggle("active", button.dataset.tab === "all");
           });
+
           searchInput.value = "#" + tag;
           renderDashboard();
         });
@@ -1494,6 +1538,30 @@ ${wrapper.innerHTML}
       }
 
       startEdge = null;
+    });
+
+    prevPageButton.addEventListener("click", function () {
+      goPreviousPage();
+    });
+
+    nextPageButton.addEventListener("click", function () {
+      goNextPage();
+    });
+
+    document.addEventListener("keydown", function (e) {
+      if (dashboard.classList.contains("open")) return;
+      if (sketchModal.classList.contains("open")) return;
+      if (plusMenu.classList.contains("open")) return;
+
+      if (e.key === "ArrowRight" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        goNextPage();
+      }
+
+      if (e.key === "ArrowLeft" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        goPreviousPage();
+      }
     });
 
     topHandle.addEventListener("click", openDashboard);
