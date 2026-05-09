@@ -71,8 +71,9 @@
       cursor: pointer;
     }
 
-    #editor s {
+    #editor .scratchy-strike {
       color: #777;
+      text-decoration: line-through;
       text-decoration-thickness: 2px;
     }
 
@@ -123,7 +124,6 @@
     let currentPage = 0;
 
     let saveTimer = null;
-    let formatTimer = null;
     let lastSavedContent = "";
 
     let startX = 0;
@@ -131,15 +131,16 @@
     let startEdge = null;
     let isDragging = false;
 
-    // Less sensitive flipping.
-    // You must start near the edge and drag a good distance.
+    // Page flip settings.
+    // Lower EDGE_SIZE = harder to accidentally trigger.
+    // Higher FLIP_DISTANCE = longer swipe needed.
     const EDGE_SIZE = 28;
     const FLIP_DISTANCE = 170;
 
     function encodePages() {
       return JSON.stringify({
         type: "scratchy-pages-html",
-        version: 3,
+        version: 4,
         pages: pages
       });
     }
@@ -161,7 +162,7 @@
           return parsed.pages.length ? parsed.pages : [""];
         }
       } catch (e) {
-        // Old version: plain text note.
+        // Old plain-text note.
       }
 
       return [escapeHTML(content)];
@@ -184,10 +185,11 @@
 
     function renderPage() {
       editor.innerHTML = pages[currentPage] || "";
-
-      applySmartFormatting(false);
+      removeOldStrikeFormatting();
+      makeLinksClickable();
+      applyStrikeFormatting();
+      saveCurrentPageLocally();
       updatePageIndicator();
-
       editor.focus();
       moveCursorToEnd();
     }
@@ -203,71 +205,12 @@
       selection.addRange(range);
     }
 
-    function getCaretCharacterOffset() {
-      const selection = window.getSelection();
+    function removeOldStrikeFormatting() {
+      editor.querySelectorAll(".scratchy-strike, s").forEach((el) => {
+        el.replaceWith(document.createTextNode(el.textContent));
+      });
 
-      if (!selection || selection.rangeCount === 0) return 0;
-
-      const range = selection.getRangeAt(0);
-      const preRange = range.cloneRange();
-
-      preRange.selectNodeContents(editor);
-      preRange.setEnd(range.endContainer, range.endOffset);
-
-      return preRange.toString().length;
-    }
-
-    function setCaretCharacterOffset(offset) {
-      const selection = window.getSelection();
-      const range = document.createRange();
-
-      let currentOffset = 0;
-      let found = false;
-
-      function walk(node) {
-        if (found) return;
-
-        if (node.nodeType === Node.TEXT_NODE) {
-          const nextOffset = currentOffset + node.nodeValue.length;
-
-          if (offset <= nextOffset) {
-            range.setStart(node, Math.max(0, offset - currentOffset));
-            range.collapse(true);
-            found = true;
-            return;
-          }
-
-          currentOffset = nextOffset;
-        } else {
-          for (const child of node.childNodes) {
-            walk(child);
-            if (found) return;
-          }
-        }
-      }
-
-      walk(editor);
-
-      if (!found) {
-        range.selectNodeContents(editor);
-        range.collapse(false);
-      }
-
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-
-    function applySmartFormatting(keepCursor = true) {
-      const caretOffset = keepCursor ? getCaretCharacterOffset() : 0;
-
-      strikeBangSentences();
-      makeLinksClickable();
-
-      if (keepCursor) {
-        setCaretCharacterOffset(caretOffset);
-      }
-
-      saveCurrentPageLocally();
+      editor.normalize();
     }
 
     function makeLinksClickable() {
@@ -278,7 +221,7 @@
           acceptNode(node) {
             if (
               node.parentElement &&
-              node.parentElement.closest("a, s, script, style")
+              node.parentElement.closest("a, script, style")
             ) {
               return NodeFilter.FILTER_REJECT;
             }
@@ -330,7 +273,7 @@
       });
     }
 
-    function strikeBangSentences() {
+    function applyStrikeFormatting() {
       const walker = document.createTreeWalker(
         editor,
         NodeFilter.SHOW_TEXT,
@@ -338,7 +281,7 @@
           acceptNode(node) {
             if (
               node.parentElement &&
-              node.parentElement.closest("a, s, script, style")
+              node.parentElement.closest("a, script, style")
             ) {
               return NodeFilter.FILTER_REJECT;
             }
@@ -370,10 +313,11 @@
           const before = text.slice(lastIndex, match.index);
           if (before) fragment.appendChild(document.createTextNode(before));
 
-          const s = document.createElement("s");
-          s.textContent = match[0];
+          const span = document.createElement("span");
+          span.className = "scratchy-strike";
+          span.textContent = match[0];
 
-          fragment.appendChild(s);
+          fragment.appendChild(span);
           lastIndex = match.index + match[0].length;
         }
 
@@ -382,6 +326,13 @@
 
         textNode.replaceWith(fragment);
       });
+    }
+
+    function applySmartFormatting() {
+      removeOldStrikeFormatting();
+      makeLinksClickable();
+      applyStrikeFormatting();
+      saveCurrentPageLocally();
     }
 
     async function reduceImage(file, maxWidth = 700, maxHeight = 700, quality = 0.65) {
@@ -459,12 +410,12 @@
       // Begin at last page.
       currentPage = pages.length - 1;
 
-      lastSavedContent = encodePages();
       renderPage();
+      lastSavedContent = encodePages();
     }
 
     async function saveNote() {
-      applySmartFormatting(false);
+      saveCurrentPageLocally();
 
       const content = encodePages();
 
@@ -491,16 +442,8 @@
       saveTimer = setTimeout(saveNote, 700);
     }
 
-    function scheduleFormatting() {
-      clearTimeout(formatTimer);
-
-      formatTimer = setTimeout(function () {
-        applySmartFormatting(true);
-      }, 900);
-    }
-
     function goNextPage() {
-      applySmartFormatting(false);
+      applySmartFormatting();
 
       editor.classList.add("flip-next");
 
@@ -521,7 +464,7 @@
     function goPreviousPage() {
       if (currentPage === 0) return;
 
-      applySmartFormatting(false);
+      applySmartFormatting();
 
       editor.classList.add("flip-prev");
 
@@ -534,13 +477,16 @@
     }
 
     editor.addEventListener("input", function () {
+      // Do NOT auto-format while typing.
+      // This prevents the bug where everything keeps being crossed out.
       saveCurrentPageLocally();
-      scheduleFormatting();
       scheduleSave();
     });
 
     editor.addEventListener("blur", function () {
-      applySmartFormatting(false);
+      // Format only when leaving the editor.
+      // Removing !!! will also remove the strikeout next time this runs.
+      applySmartFormatting();
       scheduleSave();
     });
 
